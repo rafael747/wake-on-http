@@ -1,13 +1,22 @@
+char junk; //https://forum.arduino.cc/index.php?topic=375865.0
+
+//#define LCD_DISPLAY
+
 #include <SPI.h>
 #include <Ethernet.h>
+
+#ifdef LCD_DISPLAY
 #include <LiquidCrystal.h>
+#endif
+
 #include <utility/socket.h>
 #include <ICMPPing.h>
 //#include <SD.h>
 
-
+#ifdef LCD_DISPLAY
 LiquidCrystal lcd(9, 8, 7, 6, 5, 4);
- 
+#endif
+
 // Entre com os dados do MAC e ip para o dispositivo.
 // Lembre-se que o ip depende de sua rede local
 byte mac[] = { 
@@ -28,19 +37,26 @@ int pos2;
 void setup() {
  // Abrindo a comunicação serial para monitoramento.
   Serial.begin(9600);
+  
+  #ifdef LCD_DISPLAY
   //Inicializando LCD
   lcd.begin(16, 2);
-  
   lcd.print("IP por DHCP.....");
+  #endif
+  
   delay(1000);
   //tentar pegar ip por dhcp
   if (Ethernet.begin(mac) == 0) {
     Serial.println("Failed to configure Ethernet using DHCP");
+    
+    #if defined(LCD_DISPLAY)
     lcd.setCursor(0,0);  
     lcd.print("Falha no DHCP!");
     delay(3000);
     lcd.setCursor(0,0);  
     lcd.print("Fixando IP......");
+    #endif
+    
     delay(2000);
     // colocar ip estatico
     Ethernet.begin(mac, ip);
@@ -66,11 +82,14 @@ void setup() {
   
   //inicia o server
   server.begin();
+  
+  #if defined(LCD_DISPLAY)
   lcd.clear();
   lcd.setCursor(0,0);
   lcd.print("Servidor em: ");
   lcd.setCursor(0,1);
   lcd.print(Ethernet.localIP());
+  #endif
 }
 
 void loop() {
@@ -145,20 +164,16 @@ void loop() {
 
           client.println("<table border=\"1\" width=\"706\"><tbody><tr><td><strong>Device</strong></td><td><strong>IP</strong></td><td><strong>MAC</strong></td><td><strong>Wake</strong></td><td><strong>Check if alive</strong></td></tr>");
 
-//client.println("<tr><td>PC - Casa</td><td>192.168.0.102</td><td>20-CF-30-55-5B-B2</td><td><a href=\"/?20cf30555bb2:192.168.0.102\">Wake me</a></td><td><a href=\"/?CHECKALIVE:192.168.0.102\">Check</a></td></tr>");
-//client.println("<tr>");
-//client.println("<td>Notebook</td>");
-//client.println("<td>10.0.0.1</td>");
-//client.println("<td>04-7D-7B-E4:76:51</td>");
-//client.println("<td><a href=\"/?047D7BE47651:10.0.0.1\">Wake me</a></td>");
-//client.println("<td><a href=\"/?CHECKALIVE:10.0.0.1\">Check</a></td>");
-//client.println("</tr>");
-//client.println("</tbody></table><br><br>");
+           //client.println("<tr><td>PC - Casa</td><td>192.168.0.102</td><td>20-CF-30-55-5B-B2</td><td><a href=\"/?20cf30555bb2:192.168.0.102\">Wake me</a></td><td><a href=\"/?CHECKALIVE:192.168.0.102\">Check</a></td></tr>");
+          //client.println("<tr><td>PC - Casa</td><td>10.0.0.1</td><td>20-CF-30-55-5B-B2</td><td><a href=\"/?20cf30555bb2:10.0.0.1\">Wake me</a></td><td><a href=\"/?CHECKALIVE:10.0.0.1\">Check</a></td></tr>");
+
+          client.println("<tr><td>Notebook</td><td>10.0.0.1</td><td>04-7D-7B-E4:76:51</td><td><a href=\"/?047D7BE47651:10.0.0.1\">Wake me</a></td><td><a href=\"/?CHECKALIVE:10.0.0.1\">Check</a></td></tr>");
+          client.println("</tbody></table><br><br>");
 
           if(alert)
           {
-            Serial.println(ipchecks.c_str());
-            client.println("Host ");
+              Serial.println(ipchecks.c_str());
+              client.println("Host ");
               client.println(ipchecks);
               if (alert == 2 ) client.println(" is NOT alive!");
               else client.println(" is alive!");
@@ -166,14 +181,19 @@ void loop() {
               alert=0;
 
           }
-          
-          
-          
-          client.println("</BODY></HTML>");
+           
+           if(readString.indexOf("/?") > 0 && readString.indexOf("?CHECK") < 0 ) //tem href
+                 client.println("Pacotes enviados, verifique a conexao! ");
 
-          delay(1);
+
+           
+         
+         client.println("</BODY></HTML>");
+
+           delay(10);
           //stopping client
           client.stop();
+
 
           //
           // GET the header and lookup for the mac address
@@ -192,7 +212,6 @@ void loop() {
             
             String ipchecks;
             ipchecks = readString.substring(pos+1, pos2);
-            //String ip = "10.0.0.1";
             Serial.println("IP=");
             Serial.println(ip);
             
@@ -211,16 +230,19 @@ void loop() {
 
 void resetLCD()
 {
+  #if defined(LCD_DISPLAY)
+
   delay(2000);
   lcd.clear();
   lcd.setCursor(0,0);
   lcd.print("Servidor em: ");
   lcd.setCursor(0,1);
   lcd.print(Ethernet.localIP());
+  #endif
 }
 
 
-void wake (String hostMac, String hostIp) {
+int wake (String hostMac, String hostIp) {
 
   //Serial.println(mac2StringC(host));
  
@@ -229,6 +251,8 @@ void wake (String hostMac, String hostIp) {
  
  byte ip[4];
  parseBytes(hostIp.c_str(), '.', ip, 4, 10);
+ 
+ #if defined(LCD_DISPLAY)
  
  lcd.clear();
  //lcd.print("IP:");
@@ -241,9 +265,11 @@ void wake (String hostMac, String hostIp) {
  delay(3000);
  lcd.clear();
  
+ #endif
  
  
- SendWOLMagicPacket(mac, ip);
+ 
+ return SendWOLMagicPacket(mac, ip);
   
   
   
@@ -271,7 +297,7 @@ void parseBytesNoSep(String str, int passo, byte* bytes, int maxBytes, int base)
         //str++;                                // Point to next character after separator
     }
 }
-void SendWOLMagicPacket(byte * pMacAddress, byte * ipAddr)
+int SendWOLMagicPacket(byte * pMacAddress, byte * ipAddr)
 {
  // The magic packet data sent to wake the remote machine. Target machine's
  // MAC address will be composited in here.
@@ -290,19 +316,26 @@ void SendWOLMagicPacket(byte * pMacAddress, byte * ipAddr)
  if (UDP_RawSendto(abyMagicPacket, nMagicPacketLength, nLocalPort, ipAddr, nWOLPort) != nMagicPacketLength)
  {
    Serial.println("Error sending WOL packet");
+   #if defined(LCD_DISPLAY)
    lcd.setCursor(0,0);
    lcd.print("ERRO:DISPOSITIVO");
    lcd.setCursor(0,1);
    lcd.print("NAO ENCONTRADO");
    resetLCD();
+   #endif
+   
+   return 1;
  }
  else
  {
+   #if defined(LCD_DISPLAY)
    lcd.setCursor(0,0);
    lcd.print("Pacotes enviados");
    lcd.setCursor(0,1);
    lcd.print("Teste a Conexao!");
    resetLCD();
+   #endif
+   return 0;
  }
 }
 
